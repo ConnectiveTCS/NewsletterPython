@@ -19,54 +19,24 @@ class EmailService:
         self.email_address = config.get('EMAIL_ADDRESS')
         self.email_password = config.get('EMAIL_PASSWORD')
         self.use_tls = config.get('USE_TLS', True)  # Default to True for backward compatibility
-        self.connection = None
         
-    def _get_connection(self):
-        """Get SMTP connection with retry logic"""
-        max_retries = 3
-        retry_count = 0
-        
-        while retry_count < max_retries:
-            try:
-                if self.connection is None or not self._test_connection():
-                    if self.connection:
-                        try:
-                            self.connection.quit()
-                        except:
-                            pass
-                    
-                    self.connection = smtplib.SMTP(self.smtp_server, self.smtp_port)
-                    if self.use_tls:
-                        self.connection.starttls()
-                    self.connection.login(self.email_address, self.email_password)
-                
-                return self.connection
-                
-            except Exception as e:
-                retry_count += 1
-                logger.error(f"SMTP connection attempt {retry_count} failed: {str(e)}")
-                
-                if self.connection:
-                    try:
-                        self.connection.quit()
-                    except:
-                        pass
-                    self.connection = None
-                
-                if retry_count < max_retries:
-                    time.sleep(2 ** retry_count)  # Exponential backoff
-                else:
-                    raise e
-        
-        return None
-    
-    def _test_connection(self):
-        """Test if connection is still alive"""
+    def _get_fresh_connection(self):
+        """Get a fresh SMTP connection for each email"""
         try:
-            status = self.connection.noop()[0]
-            return status == 250
-        except:
-            return False
+            connection = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            connection.set_debuglevel(0)  # Disable debug output
+            
+            if self.use_tls:
+                connection.starttls()
+            
+            connection.login(self.email_address, self.email_password)
+            return connection
+            
+        except Exception as e:
+            logger.error(f"SMTP connection failed: {str(e)}")
+            raise e
+    
+
     
     def send_email(self, to_email: str, subject: str, content: str, recipient_name: str = None) -> bool:
         """
@@ -100,27 +70,28 @@ class EmailService:
             html_part = MIMEText(personalized_content, 'html')
             msg.attach(html_part)
             
-            # Get connection and send
-            connection = self._get_connection()
-            if connection:
+            # Get fresh connection and send
+            connection = None
+            try:
+                connection = self._get_fresh_connection()
                 connection.send_message(msg)
                 logger.debug(f"Email sent successfully to {to_email}")
                 return True
-            else:
-                logger.error(f"Failed to get SMTP connection for {to_email}")
+                
+            except Exception as e:
+                logger.error(f"Error sending email to {to_email}: {str(e)}")
                 return False
                 
+            finally:
+                # Always close the connection
+                if connection:
+                    try:
+                        connection.quit()
+                    except:
+                        pass
+                        
         except Exception as e:
-            logger.error(f"Error sending email to {to_email}: {str(e)}")
-            
-            # Reset connection on error
-            if self.connection:
-                try:
-                    self.connection.quit()
-                except:
-                    pass
-                self.connection = None
-            
+            logger.error(f"Error preparing email for {to_email}: {str(e)}")
             return False
     
     def send_bulk_emails(self, recipients: list, subject: str, content: str, batch_size: int = 50) -> dict:
@@ -173,13 +144,8 @@ class EmailService:
             logger.error(error_msg)
         
         finally:
-            # Close connection
-            if self.connection:
-                try:
-                    self.connection.quit()
-                except:
-                    pass
-                self.connection = None
+            # No persistent connection to close in this implementation
+            pass
         
         return {
             'sent': sent_count,
@@ -190,10 +156,9 @@ class EmailService:
     def test_connection(self) -> bool:
         """Test SMTP connection settings"""
         try:
-            connection = self._get_connection()
+            connection = self._get_fresh_connection()
             if connection:
                 connection.quit()
-                self.connection = None
                 return True
             return False
         except Exception as e:

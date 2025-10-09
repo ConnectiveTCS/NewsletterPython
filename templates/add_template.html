@@ -55,10 +55,27 @@
                 <h5 class="mb-0">Tips & Guidelines</h5>
             </div>
             <div class="card-body">
-                <h6>Personalization:</h6>
+                <h6>Personalization Tags:</h6>
                 <ul class="small">
-                    <li>Use <code>{{name}}</code> to insert subscriber's name</li>
-                    <li>Works in both subject and content</li>
+                    <li><code>{{name}}</code> - Subscriber's name<br>
+                        <small class="text-muted">Example: "Hello {{name}}!" → "Hello John!"</small>
+                    </li>
+                    <li><code>{{email}}</code> - Subscriber's email address<br>
+                        <small class="text-muted">Example: "Contact us at {{email}}"</small>
+                    </li>
+                    <li><code>{{first_name}}</code> - First name only<br>
+                        <small class="text-muted">Example: "Hi {{first_name}}" → "Hi Sarah"</small>
+                    </li>
+                    <li><code>{{last_name}}</code> - Last name only<br>
+                        <small class="text-muted">Example: "Dear Mr. {{last_name}}"</small>
+                    </li>
+                    <li><code>{{date}}</code> - Current date<br>
+                        <small class="text-muted">Example: "Newsletter for {{date}}"</small>
+                    </li>
+                    <li><code>{{company}}</code> - Company name<br>
+                        <small class="text-muted">Example: "Welcome to {{company}}"</small>
+                    </li>
+                    <li>Works in both subject and content areas</li>
                 </ul>
 
                 <h6>HTML Support:</h6>
