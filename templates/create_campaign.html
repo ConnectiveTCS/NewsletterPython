@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Create Campaign - Newsletter App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Create Email Campaign</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('campaigns') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Campaigns
+        </a>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Campaign Details</h5>
+            </div>
+            <div class="card-body">
+                {% if not templates %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>No templates available!</strong> You need to create at least one email template before
+                    creating a campaign.
+                    <a href="{{ url_for('add_template') }}" class="btn btn-sm btn-primary ms-2">
+                        <i class="fas fa-plus"></i> Create Template
+                    </a>
+                </div>
+                {% else %}
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Campaign Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                        <div class="form-text">A descriptive name for this campaign</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="template_id" class="form-label">Email Template *</label>
+                        <select class="form-select" id="template_id" name="template_id" required
+                            onchange="updatePreview()">
+                            <option value="">Select a template...</option>
+                            {% for template in templates %}
+                            <option value="{{ template.id }}" data-subject="{{ template.subject }}"
+                                data-content="{{ template.content|e }}">
+                                {{ template.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Choose the email template for this campaign</div>
+                    </div>
+
+                    <div id="template-preview" class="mb-3" style="display: none;">
+                        <h6>Template Preview:</h6>
+                        <div class="border p-3 bg-light">
+                            <div><strong>Subject:</strong> <span id="preview-subject"></span></div>
+                            <hr>
+                            <div id="preview-content"></div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Create Campaign
+                        </button>
+                        <a href="{{ url_for('campaigns') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updatePreview() {
+        const select = document.getElementById('template_id');
+        const preview = document.getElementById('template-preview');
+        const subjectSpan = document.getElementById('preview-subject');
+        const contentDiv = document.getElementById('preview-content');
+
+        if (select.value) {
+            const option = select.options[select.selectedIndex];
+            const subject = option.getAttribute('data-subject');
+            const content = option.getAttribute('data-content');
+
+            subjectSpan.textContent = subject;
+            contentDiv.innerHTML = content;
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Create Template - Newsletter App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Create Email Template</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('templates') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Templates
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Template Details</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Template Name *</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                        <div class="form-text">A descriptive name for this template</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="subject" class="form-label">Email Subject *</label>
+                        <input type="text" class="form-control" id="subject" name="subject" required>
+                        <div class="form-text">Subject line for emails sent with this template</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="content" class="form-label">Email Content *</label>
+                        <textarea class="form-control" id="content" name="content" rows="15" required></textarea>
+                        <div class="form-text">HTML content is supported. Use {{name}} for personalization.</div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Template
+                        </button>
+                        <a href="{{ url_for('templates') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Tips & Guidelines</h5>
+            </div>
+            <div class="card-body">
+                <h6>Personalization:</h6>
+                <ul class="small">
+                    <li>Use <code>{{name}}</code> to insert subscriber's name</li>
+                    <li>Works in both subject and content</li>
+                </ul>
+
+                <h6>HTML Support:</h6>
+                <ul class="small">
+                    <li>Full HTML formatting supported</li>
+                    <li>Include images with full URLs</li>
+                    <li>Use inline CSS for styling</li>
+                </ul>
+
+                <h6>Best Practices:</h6>
+                <ul class="small">
+                    <li>Keep subject lines under 50 characters</li>
+                    <li>Use clear, compelling content</li>
+                    <li>Include unsubscribe information</li>
+                    <li>Test with different email clients</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">Sample Template</h5>
+            </div>
+            <div class="card-body">
+                <button type="button" class="btn btn-sm btn-outline-info w-100" onclick="loadSample()">
+                    Load Sample Template
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function loadSample() {
+        document.getElementById('name').value = 'Welcome Newsletter';
+        document.getElementById('subject').value = 'Welcome to our Newsletter, {{name}}!';
+        document.getElementById('content').value = `<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #007bff; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background: #f8f9fa; }
+        .footer { padding: 20px; text-align: center; font-size: 12px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to Our Newsletter!</h1>
+        </div>
+        <div class="content">
+            <h2>Hello {{name}}!</h2>
+            <p>Thank you for subscribing to our newsletter. We're excited to have you on board!</p>
+            <p>You'll receive regular updates about:</p>
+            <ul>
+                <li>Latest news and updates</li>
+                <li>Special offers and promotions</li>
+                <li>Industry insights and tips</li>
+            </ul>
+            <p>Stay tuned for great content!</p>
+        </div>
+        <div class="footer">
+            <p>You received this email because you subscribed to our newsletter.</p>
+            <p>If you no longer wish to receive these emails, please unsubscribe.</p>
+        </div>
+    </div>
+</body>
+</html>`;
+    }
+</script>
+{% endblock %}

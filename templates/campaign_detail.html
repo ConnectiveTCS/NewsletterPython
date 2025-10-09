@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}{{ campaign.name }} - Newsletter App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ campaign.name }}</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('campaigns') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Campaigns
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Campaign Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Campaign Name:</strong> {{ campaign.name }}</p>
+                        <p><strong>Template:</strong> {{ campaign.template.name }}</p>
+                        <p><strong>Status:</strong>
+                            {% if campaign.status == 'draft' %}
+                            <span class="badge bg-secondary">Draft</span>
+                            {% elif campaign.status == 'sending' %}
+                            <span class="badge bg-warning">Sending</span>
+                            {% elif campaign.status == 'sent' %}
+                            <span class="badge bg-success">Sent</span>
+                            {% elif campaign.status == 'failed' %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% endif %}
+                        </p>
+                        <p><strong>Created:</strong> {{ campaign.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                        {% if campaign.sent_at %}
+                        <p><strong>Sent:</strong> {{ campaign.sent_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        {% if campaign.status in ['sent', 'sending'] %}
+                        <p><strong>Total Sent:</strong> <span id="total-sent">{{ campaign.total_sent or 0 }}</span></p>
+                        <p><strong>Total Failed:</strong> <span id="total-failed">{{ campaign.total_failed or 0
+                                }}</span></p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if campaign.status == 'sending' %}
+                <div class="alert alert-info">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <strong>Campaign is currently being sent...</strong>
+                    <div class="mt-2">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                                style="width: 100%"></div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Template Preview</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Subject:</strong> {{ campaign.template.subject }}
+                </div>
+                <div class="border p-3 bg-light">
+                    {{ campaign.template.content|safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Actions</h5>
+            </div>
+            <div class="card-body">
+                {% if campaign.status == 'draft' %}
+                <form method="POST" action="{{ url_for('send_campaign', id=campaign.id) }}"
+                    onsubmit="return confirmSend()">
+                    <button type="submit" class="btn btn-success w-100 mb-2">
+                        <i class="fas fa-paper-plane"></i> Send Campaign
+                    </button>
+                </form>
+                <div class="alert alert-info small">
+                    <i class="fas fa-info-circle"></i>
+                    This will send the email to all active subscribers immediately.
+                </div>
+                {% elif campaign.status == 'sending' %}
+                <button class="btn btn-warning w-100 mb-2" disabled>
+                    <i class="fas fa-spinner fa-spin"></i> Sending in Progress...
+                </button>
+                {% elif campaign.status == 'sent' %}
+                <a href="{{ url_for('campaign_logs', id=campaign.id) }}" class="btn btn-info w-100 mb-2">
+                    <i class="fas fa-list"></i> View Email Logs
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if campaign.status in ['sent', 'sending'] %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h4 class="text-success" id="sent-count">{{ campaign.total_sent or 0 }}</h4>
+                            <small class="text-muted">Sent</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-danger" id="failed-count">{{ campaign.total_failed or 0 }}</h4>
+                        <small class="text-muted">Failed</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function confirmSend() {
+        return confirm('Are you sure you want to send this campaign to all subscribers? This action cannot be undone.');
+    }
+
+    {% if campaign.status == 'sending' %}
+    // Auto-refresh status for sending campaigns
+    function updateStatus() {
+        fetch('{{ url_for("campaign_status_api", id=campaign.id) }}')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('total-sent').textContent = data.total_sent;
+                document.getElementById('total-failed').textContent = data.total_failed;
+                document.getElementById('sent-count').textContent = data.total_sent;
+                document.getElementById('failed-count').textContent = data.total_failed;
+
+                if (data.status !== 'sending') {
+                    location.reload();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+    // Update every 5 seconds
+    setInterval(updateStatus, 5000);
+    {% endif %}
+</script>
+{% endblock %}

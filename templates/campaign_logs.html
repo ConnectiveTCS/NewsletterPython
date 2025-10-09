@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}{{ campaign.name }} Logs - Newsletter App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">{{ campaign.name }} - Email Logs</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('campaign_detail', id=campaign.id) }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Campaign
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h4 class="text-primary">{{ logs.total }}</h4>
+                        <small class="text-muted">Total Emails</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-success">{{ campaign.total_sent or 0 }}</h4>
+                        <small class="text-muted">Successfully Sent</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-danger">{{ campaign.total_failed or 0 }}</h4>
+                        <small class="text-muted">Failed</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h4 class="text-info">
+                            {% if logs.total > 0 %}
+                            {{ "%.1f"|format((campaign.total_sent or 0) * 100 / logs.total) }}%
+                            {% else %}
+                            0%
+                            {% endif %}
+                        </h4>
+                        <small class="text-muted">Success Rate</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if logs.items %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Email Delivery Logs</h5>
+        <div class="btn-group btn-group-sm">
+            <a href="{{ url_for('campaign_logs', id=campaign.id) }}" class="btn btn-outline-secondary">All</a>
+            <a href="{{ url_for('campaign_logs', id=campaign.id) }}?status=sent"
+                class="btn btn-outline-success">Sent</a>
+            <a href="{{ url_for('campaign_logs', id=campaign.id) }}?status=failed"
+                class="btn btn-outline-danger">Failed</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Email Address</th>
+                        <th>Status</th>
+                        <th>Sent At</th>
+                        <th>Error Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs.items %}
+                    <tr>
+                        <td>{{ log.subscriber_email }}</td>
+                        <td>
+                            {% if log.status == 'sent' %}
+                            <span class="badge bg-success status-badge">Sent</span>
+                            {% elif log.status == 'failed' %}
+                            <span class="badge bg-danger status-badge">Failed</span>
+                            {% elif log.status == 'bounced' %}
+                            <span class="badge bg-warning status-badge">Bounced</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ log.sent_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>
+                            {% if log.error_message %}
+                            <small class="text-danger">{{ log.error_message }}</small>
+                            {% else %}
+                            <small class="text-muted">-</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+{% if logs.pages > 1 %}
+<nav aria-label="Email logs pagination" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if logs.has_prev %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('campaign_logs', id=campaign.id, page=logs.prev_num) }}">Previous</a>
+        </li>
+        {% endif %}
+
+        {% for page_num in logs.iter_pages() %}
+        {% if page_num %}
+        {% if page_num != logs.page %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('campaign_logs', id=campaign.id, page=page_num) }}">{{ page_num }}</a>
+        </li>
+        {% else %}
+        <li class="page-item active">
+            <span class="page-link">{{ page_num }}</span>
+        </li>
+        {% endif %}
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link">...</span>
+        </li>
+        {% endif %}
+        {% endfor %}
+
+        {% if logs.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('campaign_logs', id=campaign.id, page=logs.next_num) }}">Next</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="fas fa-list fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">No email logs found</h5>
+        <p class="text-muted">Email logs will appear here after the campaign is sent.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Add Subscriber - Newsletter App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Add Subscriber</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('subscribers') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Subscribers
+        </a>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Add New Subscriber</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address *</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                        <div class="form-text">The subscriber's email address</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="name" name="name">
+                        <div class="form-text">Optional: Subscriber's full name for personalization</div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-user-plus"></i> Add Subscriber
+                        </button>
+                        <a href="{{ url_for('subscribers') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

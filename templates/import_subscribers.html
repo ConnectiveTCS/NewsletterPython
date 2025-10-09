@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Import Subscribers - Newsletter App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Import Subscribers</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="{{ url_for('subscribers') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Subscribers
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Upload CSV File</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Select CSV File *</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".csv" required>
+                        <div class="form-text">Upload a CSV file with subscriber information</div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-file-import"></i> Import Subscribers
+                        </button>
+                        <a href="{{ url_for('subscribers') }}" class="btn btn-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">CSV Format</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Expected CSV format:</strong></p>
+                <pre class="bg-light p-3 rounded">email,name
+john@example.com,John Doe
+jane@example.com,Jane Smith
+bob@example.com,Bob Johnson</pre>
+
+                <div class="mt-3">
+                    <h6>Instructions:</h6>
+                    <ul class="small">
+                        <li>First column: Email address (required)</li>
+                        <li>Second column: Full name (optional)</li>
+                        <li>No header row needed</li>
+                        <li>Duplicate emails will be skipped</li>
+                        <li>Invalid emails will be ignored</li>
+                    </ul>
+                </div>
+
+                <div class="mt-3">
+                    <a href="#" class="btn btn-sm btn-outline-info" onclick="downloadSample()">
+                        <i class="fas fa-download"></i> Download Sample CSV
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function downloadSample() {
+        const csvContent = "email,name\njohn@example.com,John Doe\njane@example.com,Jane Smith\nbob@example.com,Bob Johnson";
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'sample_subscribers.csv';
+        link.click();
+    }
+</script>
+{% endblock %}

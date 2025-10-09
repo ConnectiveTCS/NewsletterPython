@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Newsletter App{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard</h1>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-2x mb-2"></i>
+                <h5>{{ total_subscribers }}</h5>
+                <p class="mb-0">Total Subscribers</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body text-center">
+                <i class="fas fa-file-alt fa-2x mb-2"></i>
+                <h5>{{ total_templates }}</h5>
+                <p class="mb-0">Email Templates</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body text-center">
+                <i class="fas fa-paper-plane fa-2x mb-2"></i>
+                <h5>{{ total_campaigns }}</h5>
+                <p class="mb-0">Total Campaigns</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card card-stat">
+            <div class="card-body text-center">
+                <i class="fas fa-chart-line fa-2x mb-2"></i>
+                <h5>{{ recent_campaigns|length }}</h5>
+                <p class="mb-0">Recent Campaigns</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('add_subscriber') }}" class="btn btn-primary btn-lg w-100">
+                            <i class="fas fa-user-plus"></i><br>
+                            Add Subscriber
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('import_subscribers') }}" class="btn btn-info btn-lg w-100">
+                            <i class="fas fa-file-import"></i><br>
+                            Import Subscribers
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('add_template') }}" class="btn btn-success btn-lg w-100">
+                            <i class="fas fa-plus"></i><br>
+                            Create Template
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('create_campaign') }}" class="btn btn-warning btn-lg w-100">
+                            <i class="fas fa-paper-plane"></i><br>
+                            Create Campaign
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Campaigns -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Recent Campaigns</h5>
+                <a href="{{ url_for('campaigns') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                {% if recent_campaigns %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Campaign Name</th>
+                                <th>Template</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for campaign in recent_campaigns %}
+                            <tr>
+                                <td>{{ campaign.name }}</td>
+                                <td>{{ campaign.template.name }}</td>
+                                <td>
+                                    {% if campaign.status == 'draft' %}
+                                    <span class="badge bg-secondary status-badge">Draft</span>
+                                    {% elif campaign.status == 'sending' %}
+                                    <span class="badge bg-warning status-badge">Sending</span>
+                                    {% elif campaign.status == 'sent' %}
+                                    <span class="badge bg-success status-badge">Sent</span>
+                                    {% elif campaign.status == 'failed' %}
+                                    <span class="badge bg-danger status-badge">Failed</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ campaign.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>
+                                    <a href="{{ url_for('campaign_detail', id=campaign.id) }}"
+                                        class="btn btn-sm btn-outline-primary btn-action">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-paper-plane fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No campaigns yet</h5>
+                    <p class="text-muted">Create your first campaign to get started!</p>
+                    <a href="{{ url_for('create_campaign') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Campaign
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
