@@ -11,15 +11,103 @@ import threading
 import time
 # ThreadPoolExecutor removed - using sequential sending to avoid connection issues
 import logging
+import unicodedata
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def format_name(name):
+    """
+    Format names properly:
+    - Arabic names: keep as-is (preserve original formatting)
+    - English names: Title Case (First Letter Capital, rest lowercase)
+    - Handle special cases like hyphenated names, apostrophes, etc.
+    """
+    if not name or not name.strip():
+        return ""
+    
+    name = name.strip()
+    
+    # Check if name contains Arabic characters
+    def contains_arabic(text):
+        for char in text:
+            if '\u0600' <= char <= '\u06FF' or '\u0750' <= char <= '\u077F' or '\u08A0' <= char <= '\u08FF':
+                return True
+        return False
+    
+    # If name contains Arabic characters, preserve original formatting
+    if contains_arabic(name):
+        return name
+    
+    # For non-Arabic names, apply proper title casing
+    # Handle special cases for names
+    formatted_name = []
+    
+    # Split by spaces to handle multiple names
+    name_parts = name.split()
+    
+    for part in name_parts:
+        if not part:
+            continue
+            
+        # Handle hyphenated names (e.g., "Al-Rashid")
+        if '-' in part:
+            hyphen_parts = part.split('-')
+            formatted_hyphen = []
+            for hyp_part in hyphen_parts:
+                if hyp_part:
+                    # Special handling for prefixes like "Al", "De", "Van", etc.
+                    if hyp_part.lower() in ['al', 'de', 'van', 'von', 'da', 'del', 'della', 'di']:
+                        formatted_hyphen.append(hyp_part.title())
+                    else:
+                        formatted_hyphen.append(hyp_part.capitalize())
+            formatted_name.append('-'.join(formatted_hyphen))
+        
+        # Handle names with apostrophes (e.g., "O'Connor")
+        elif "'" in part:
+            apos_parts = part.split("'")
+            formatted_apos = []
+            for i, apos_part in enumerate(apos_parts):
+                if apos_part:
+                    formatted_apos.append(apos_part.capitalize())
+                else:
+                    formatted_apos.append(apos_part)
+            formatted_name.append("'".join(formatted_apos))
+        
+        # Handle regular names
+        else:
+            # Special handling for prefixes and Celtic names
+            if part.lower() in ['al', 'de', 'van', 'von', 'da', 'del', 'della', 'di']:
+                formatted_name.append(part.title())
+            # Handle Celtic names like McPherson, MacDonald, O'Brien
+            elif part.lower().startswith('mc') and len(part) > 2:
+                formatted_name.append('Mc' + part[2:].capitalize())
+            elif part.lower().startswith('mac') and len(part) > 3:
+                formatted_name.append('Mac' + part[3:].capitalize())
+            else:
+                formatted_name.append(part.capitalize())
+    
+    return ' '.join(formatted_name)
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///newsletter.db'
+# Configure SQLite with UTF-8 support
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///newsletter.db?charset=utf8mb4'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+}
+
+# Ensure proper UTF-8 handling
+app.config['JSON_AS_ASCII'] = False
+
+@app.after_request
+def after_request(response):
+    """Ensure all responses have proper UTF-8 encoding"""
+    response.headers['Content-Type'] = response.headers.get('Content-Type', 'text/html') + '; charset=utf-8'
+    return response
 
 # Email configuration
 app.config['SMTP_SERVER'] = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
@@ -104,19 +192,81 @@ def import_subscribers():
             try:
                 import csv
                 import io
+                import re
                 
-                stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
-                csv_input = csv.reader(stream)
+                # Read the file content with better encoding handling
+                content = file.stream.read()
+                
+                # Try different encodings, prioritizing UTF-8
+                encodings_to_try = ['utf-8-sig', 'utf-8', 'utf-16', 'cp1256', 'latin1', 'cp1252']
+                decoded_content = None
+                used_encoding = None
+                
+                for encoding in encodings_to_try:
+                    try:
+                        decoded_content = content.decode(encoding)
+                        used_encoding = encoding
+                        print(f"DEBUG: Successfully decoded CSV using {encoding}")
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                
+                if decoded_content is None:
+                    flash('Unable to decode CSV file. Please ensure it\'s saved in UTF-8 format.', 'error')
+                    return redirect(request.url)
+                
+                stream = io.StringIO(decoded_content, newline=None)
+                
+                # Detect delimiter (comma or semicolon)
+                sample_line = decoded_content.split('\n')[0] if '\n' in decoded_content else decoded_content
+                delimiter = ';' if ';' in sample_line and sample_line.count(';') > sample_line.count(',') else ','
+                
+                csv_input = csv.reader(stream, delimiter=delimiter)
                 
                 added_count = 0
                 duplicate_count = 0
+                error_count = 0
+                invalid_emails = []  # For debugging
+                
+                # Track processed rows
+                row_number = 0
                 
                 for row in csv_input:
+                    row_number += 1
+                    
+                    # Skip empty rows
+                    if not row or (len(row) == 1 and not row[0].strip()):
+                        continue
+                    
+                    # Check if this looks like a header row
+                    if row_number == 1:
+                        row_str = ','.join(row).lower()
+                        if 'email' in row_str or 'e-mail' in row_str:
+                            continue  # Skip header row
+                    
                     if len(row) >= 1:
-                        email = row[0].strip().lower()
+                        email = row[0].strip()
                         name = row[1].strip() if len(row) > 1 else ''
                         
-                        if email and '@' in email:
+                        # Clean up email - remove any quotes or extra spaces
+                        email = email.replace('"', '').replace("'", "").strip().lower()
+                        
+                        # Check if name contains corrupted characters (question marks)
+                        if '?' in name and len(name) > 3:
+                            # Skip corrupted entries or mark them for manual review
+                            print(f"DEBUG: Corrupted name detected: {repr(name)}")
+                            name = "[Name needs manual correction]"
+                        
+                        # Clean and format name properly
+                        name = format_name(name)
+                        
+                        # Debug: Print name to console to check encoding
+                        if any('\u0600' <= char <= '\u06FF' for char in name):
+                            print(f"DEBUG: Arabic name found: {repr(name)} -> {name}")
+                        
+                        # More lenient email validation
+                        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                        if email and re.match(email_pattern, email):
                             existing = Subscriber.query.filter_by(email=email).first()
                             if not existing:
                                 subscriber = Subscriber(email=email, name=name)
@@ -124,9 +274,28 @@ def import_subscribers():
                                 added_count += 1
                             else:
                                 duplicate_count += 1
+                        else:
+                            error_count += 1
+                            # Keep track of first few invalid emails for debugging
+                            if len(invalid_emails) < 5:
+                                invalid_emails.append(f"Row {row_number}: '{email}'")
                 
                 db.session.commit()
-                flash(f'Successfully imported {added_count} subscribers. {duplicate_count} duplicates skipped.', 'success')
+                
+                # Create detailed success message
+                message_parts = [f'Successfully imported {added_count} subscribers']
+                if duplicate_count > 0:
+                    message_parts.append(f'{duplicate_count} duplicates skipped')
+                if error_count > 0:
+                    message_parts.append(f'{error_count} invalid entries skipped')
+                
+                message = '. '.join(message_parts) + '.'
+                
+                # Add debugging information if there were errors
+                if error_count > 0 and invalid_emails:
+                    print(f"DEBUG: Invalid emails found: {invalid_emails}")  # For console debugging
+                
+                flash(message, 'success')
                 
             except Exception as e:
                 db.session.rollback()
@@ -149,6 +318,48 @@ def delete_subscriber(id):
     except Exception as e:
         db.session.rollback()
         flash(f'Error deleting subscriber: {str(e)}', 'error')
+    
+    return redirect(url_for('subscribers'))
+
+@app.route('/subscribers/bulk-delete', methods=['POST'])
+def bulk_delete_subscribers():
+    """Bulk delete subscribers"""
+    subscriber_ids = request.form.getlist('subscriber_ids')
+    
+    if not subscriber_ids:
+        flash('No subscribers selected for deletion', 'error')
+        return redirect(url_for('subscribers'))
+    
+    try:
+        # Convert string IDs to integers and validate
+        ids_to_delete = []
+        for id_str in subscriber_ids:
+            try:
+                ids_to_delete.append(int(id_str))
+            except ValueError:
+                flash(f'Invalid subscriber ID: {id_str}', 'error')
+                return redirect(url_for('subscribers'))
+        
+        # Delete subscribers
+        deleted_count = 0
+        for subscriber_id in ids_to_delete:
+            subscriber = Subscriber.query.get(subscriber_id)
+            if subscriber:
+                db.session.delete(subscriber)
+                deleted_count += 1
+        
+        db.session.commit()
+        
+        if deleted_count > 0:
+            message = f'Successfully deleted {deleted_count} subscriber{"s" if deleted_count != 1 else ""}'
+            flash(message, 'success')
+        else:
+            flash('No subscribers were deleted', 'warning')
+            
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'Error in bulk delete: {str(e)}')
+        flash(f'Error deleting subscribers: {str(e)}', 'error')
     
     return redirect(url_for('subscribers'))
 
