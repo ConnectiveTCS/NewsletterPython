@@ -266,82 +266,87 @@ def send_campaign(id):
     
     # Start sending in background
     def send_emails():
-        try:
-            campaign.status = 'sending'
-            campaign.sent_at = datetime.utcnow()
-            db.session.commit()
-            
-            subscribers = Subscriber.query.filter_by(is_active=True).all()
-            template = campaign.template
-            
-            total_sent = 0
-            total_failed = 0
-            
-            # Send emails in batches using thread pool
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = []
+        with app.app_context():
+            try:
+                # Refresh campaign object in the new context
+                campaign_obj = Campaign.query.get(id)
+                campaign_obj.status = 'sending'
+                campaign_obj.sent_at = datetime.utcnow()
+                db.session.commit()
                 
-                for subscriber in subscribers:
-                    future = executor.submit(
-                        email_service.send_email,
-                        subscriber.email,
-                        template.subject,
-                        template.content,
-                        subscriber.name
-                    )
-                    futures.append((future, subscriber))
+                subscribers = Subscriber.query.filter_by(is_active=True).all()
+                template = campaign_obj.template
                 
-                for future, subscriber in futures:
-                    try:
-                        result = future.result(timeout=30)
-                        if result:
-                            total_sent += 1
-                            # Log successful send
-                            log = EmailLog(
-                                campaign_id=campaign.id,
-                                subscriber_email=subscriber.email,
-                                status='sent',
-                                sent_at=datetime.utcnow()
-                            )
-                        else:
+                total_sent = 0
+                total_failed = 0
+                
+                # Send emails in batches using thread pool
+                with ThreadPoolExecutor(max_workers=10) as executor:
+                    futures = []
+                    
+                    for subscriber in subscribers:
+                        future = executor.submit(
+                            email_service.send_email,
+                            subscriber.email,
+                            template.subject,
+                            template.content,
+                            subscriber.name
+                        )
+                        futures.append((future, subscriber))
+                    
+                    for future, subscriber in futures:
+                        try:
+                            result = future.result(timeout=30)
+                            if result:
+                                total_sent += 1
+                                # Log successful send
+                                log = EmailLog(
+                                    campaign_id=campaign_obj.id,
+                                    subscriber_email=subscriber.email,
+                                    status='sent',
+                                    sent_at=datetime.utcnow()
+                                )
+                            else:
+                                total_failed += 1
+                                # Log failed send
+                                log = EmailLog(
+                                    campaign_id=campaign_obj.id,
+                                    subscriber_email=subscriber.email,
+                                    status='failed',
+                                    error_message='Send failed',
+                                    sent_at=datetime.utcnow()
+                                )
+                            
+                            db.session.add(log)
+                            
+                        except Exception as e:
                             total_failed += 1
-                            # Log failed send
+                            logger.error(f"Error sending to {subscriber.email}: {str(e)}")
+                            
+                            # Log error
                             log = EmailLog(
-                                campaign_id=campaign.id,
+                                campaign_id=campaign_obj.id,
                                 subscriber_email=subscriber.email,
                                 status='failed',
-                                error_message='Send failed',
+                                error_message=str(e),
                                 sent_at=datetime.utcnow()
                             )
-                        
-                        db.session.add(log)
-                        
-                    except Exception as e:
-                        total_failed += 1
-                        logger.error(f"Error sending to {subscriber.email}: {str(e)}")
-                        
-                        # Log error
-                        log = EmailLog(
-                            campaign_id=campaign.id,
-                            subscriber_email=subscriber.email,
-                            status='failed',
-                            error_message=str(e),
-                            sent_at=datetime.utcnow()
-                        )
-                        db.session.add(log)
-            
-            # Update campaign status
-            campaign.status = 'sent'
-            campaign.total_sent = total_sent
-            campaign.total_failed = total_failed
-            db.session.commit()
-            
-            logger.info(f"Campaign {campaign.name} completed: {total_sent} sent, {total_failed} failed")
-            
-        except Exception as e:
-            campaign.status = 'failed'
-            db.session.commit()
-            logger.error(f"Campaign {campaign.name} failed: {str(e)}")
+                            db.session.add(log)
+                
+                # Update campaign status
+                campaign_obj.status = 'sent'
+                campaign_obj.total_sent = total_sent
+                campaign_obj.total_failed = total_failed
+                db.session.commit()
+                
+                logger.info(f"Campaign {campaign_obj.name} completed: {total_sent} sent, {total_failed} failed")
+                
+            except Exception as e:
+                with app.app_context():
+                    campaign_obj = Campaign.query.get(id)
+                    campaign_obj.status = 'failed'
+                    db.session.commit()
+                logger.error(f"Campaign failed: {str(e)}")
     
     # Start background thread
     thread = threading.Thread(target=send_emails)
