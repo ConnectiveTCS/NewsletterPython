@@ -92,22 +92,8 @@ def format_name(name):
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
-# Configure SQLite with UTF-8 support
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///newsletter.db?charset=utf8mb4'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///newsletter.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_pre_ping': True,
-    'pool_recycle': 300,
-}
-
-# Ensure proper UTF-8 handling
-app.config['JSON_AS_ASCII'] = False
-
-@app.after_request
-def after_request(response):
-    """Ensure all responses have proper UTF-8 encoding"""
-    response.headers['Content-Type'] = response.headers.get('Content-Type', 'text/html') + '; charset=utf-8'
-    return response
 
 # Email configuration
 app.config['SMTP_SERVER'] = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
@@ -197,16 +183,13 @@ def import_subscribers():
                 # Read the file content with better encoding handling
                 content = file.stream.read()
                 
-                # Try different encodings, prioritizing UTF-8
-                encodings_to_try = ['utf-8-sig', 'utf-8', 'utf-16', 'cp1256', 'latin1', 'cp1252']
+                # Try different encodings
+                encodings_to_try = ['utf-8', 'utf-8-sig', 'latin-1', 'cp1252']
                 decoded_content = None
-                used_encoding = None
                 
                 for encoding in encodings_to_try:
                     try:
                         decoded_content = content.decode(encoding)
-                        used_encoding = encoding
-                        print(f"DEBUG: Successfully decoded CSV using {encoding}")
                         break
                     except UnicodeDecodeError:
                         continue
@@ -217,9 +200,17 @@ def import_subscribers():
                 
                 stream = io.StringIO(decoded_content, newline=None)
                 
-                # Detect delimiter (comma or semicolon)
+                # Detect delimiter (tab, semicolon, or comma)
                 sample_line = decoded_content.split('\n')[0] if '\n' in decoded_content else decoded_content
-                delimiter = ';' if ';' in sample_line and sample_line.count(';') > sample_line.count(',') else ','
+                
+                # Check for tab delimiter first (most specific)
+                if '\t' in sample_line:
+                    delimiter = '\t'
+                # Then check for semicolon vs comma
+                elif ';' in sample_line and sample_line.count(';') > sample_line.count(','):
+                    delimiter = ';'
+                else:
+                    delimiter = ','
                 
                 csv_input = csv.reader(stream, delimiter=delimiter)
                 
@@ -251,18 +242,8 @@ def import_subscribers():
                         # Clean up email - remove any quotes or extra spaces
                         email = email.replace('"', '').replace("'", "").strip().lower()
                         
-                        # Check if name contains corrupted characters (question marks)
-                        if '?' in name and len(name) > 3:
-                            # Skip corrupted entries or mark them for manual review
-                            print(f"DEBUG: Corrupted name detected: {repr(name)}")
-                            name = "[Name needs manual correction]"
-                        
                         # Clean and format name properly
                         name = format_name(name)
-                        
-                        # Debug: Print name to console to check encoding
-                        if any('\u0600' <= char <= '\u06FF' for char in name):
-                            print(f"DEBUG: Arabic name found: {repr(name)} -> {name}")
                         
                         # More lenient email validation
                         email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'

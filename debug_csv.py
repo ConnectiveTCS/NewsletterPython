@@ -74,10 +74,22 @@ def test_csv_parsing(csv_content):
     """Test CSV parsing with the same logic as the app"""
     print(f"Raw CSV content (first 200 chars): {repr(csv_content[:200])}")
     
-    # Detect delimiter (comma or semicolon)
+    # Detect delimiter (tab, semicolon, or comma)
     sample_line = csv_content.split('\n')[0] if '\n' in csv_content else csv_content
-    delimiter = ';' if ';' in sample_line and sample_line.count(';') > sample_line.count(',') else ','
-    print(f"Detected delimiter: '{delimiter}'")
+    
+    # Check for tab delimiter first (most specific)
+    if '\t' in sample_line:
+        delimiter = '\t'
+        delimiter_name = 'tab'
+    # Then check for semicolon vs comma
+    elif ';' in sample_line and sample_line.count(';') > sample_line.count(','):
+        delimiter = ';'
+        delimiter_name = 'semicolon'
+    else:
+        delimiter = ','
+        delimiter_name = 'comma'
+    
+    print(f"Detected delimiter: '{delimiter_name}' ({repr(delimiter)})")
     
     stream = io.StringIO(csv_content, newline=None)
     csv_input = csv.reader(stream, delimiter=delimiter)
@@ -143,6 +155,15 @@ veeranka.shah@iswkoman.com;Veeranka Shah"""
 
 print("\nTesting semicolon-separated CSV:")
 test_csv_parsing(semicolon_csv)
+
+# Test with tab-separated data (like user's actual file)
+tab_csv = """email	name
+24f026@otc.edu.om	Maryam Alsidairi
+kirubhashini@iswkoman.com	Kirubhashini
+sima4french@gmail.com	SIMA GHOSH DASTIDAR"""
+
+print("\nTesting tab-separated CSV:")
+test_csv_parsing(tab_csv)
 
 print("\n" + "="*50)
 print("Testing name formatting:")
