@@ -3,6 +3,28 @@
 {% block title %}Subscribers - Newsletter App{% endblock %}
 
 {% block content %}
+<style>
+    .status-toggle-btn {
+        border: none;
+        background: none;
+        padding: 0;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    .status-toggle-btn:hover {
+        transform: scale(1.05);
+    }
+
+    .status-toggle-btn:disabled {
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .status-toggle-btn .badge {
+        transition: all 0.3s ease;
+    }
+</style>
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">Subscribers</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
@@ -14,6 +36,42 @@
                 <i class="fas fa-file-import"></i> Import CSV
             </a>
         </div>
+    </div>
+</div>
+
+<!-- Search Form -->
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('subscribers') }}" class="d-flex align-items-center gap-2">
+            <div class="input-group flex-grow-1">
+                <span class="input-group-text">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" name="search" class="form-control" placeholder="Search by email or name..."
+                    value="{{ search or '' }}" autocomplete="off">
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-search"></i> Search
+            </button>
+            {% if search %}
+            <a href="{{ url_for('subscribers') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-times"></i> Clear
+            </a>
+            {% endif %}
+        </form>
+        {% if search %}
+        <div class="mt-2">
+            <small class="text-muted">
+                <i class="fas fa-info-circle"></i>
+                Showing results for: <strong>"{{ search }}"</strong>
+                {% if subscribers.total %}
+                ({{ subscribers.total }} result{{ 's' if subscribers.total != 1 else '' }} found)
+                {% else %}
+                (no results found)
+                {% endif %}
+            </small>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -62,11 +120,20 @@
                             <td>{{ subscriber.email }}</td>
                             <td>{{ subscriber.name or '-' }}</td>
                             <td>
-                                {% if subscriber.is_active %}
-                                <span class="badge bg-success status-badge">Active</span>
-                                {% else %}
-                                <span class="badge bg-secondary status-badge">Inactive</span>
-                                {% endif %}
+                                <button type="button" class="btn btn-sm status-toggle-btn"
+                                    data-subscriber-id="{{ subscriber.id }}"
+                                    data-current-status="{{ subscriber.is_active }}"
+                                    title="Click to {{ 'deactivate' if subscriber.is_active else 'activate' }}">
+                                    {% if subscriber.is_active %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i> Active
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-times-circle"></i> Inactive
+                                    </span>
+                                    {% endif %}
+                                </button>
                             </td>
                             <td>{{ subscriber.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                             <td>
@@ -91,7 +158,8 @@
     <ul class="pagination justify-content-center">
         {% if subscribers.has_prev %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('subscribers', page=subscribers.prev_num) }}">Previous</a>
+            <a class="page-link"
+                href="{{ url_for('subscribers', page=subscribers.prev_num, search=search) }}">Previous</a>
         </li>
         {% endif %}
 
@@ -99,7 +167,7 @@
         {% if page_num %}
         {% if page_num != subscribers.page %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('subscribers', page=page_num) }}">{{ page_num }}</a>
+            <a class="page-link" href="{{ url_for('subscribers', page=page_num, search=search) }}">{{ page_num }}</a>
         </li>
         {% else %}
         <li class="page-item active">
@@ -115,7 +183,7 @@
 
         {% if subscribers.has_next %}
         <li class="page-item">
-            <a class="page-link" href="{{ url_for('subscribers', page=subscribers.next_num) }}">Next</a>
+            <a class="page-link" href="{{ url_for('subscribers', page=subscribers.next_num, search=search) }}">Next</a>
         </li>
         {% endif %}
     </ul>
@@ -126,6 +194,15 @@
 <div class="card">
     <div class="card-body text-center py-5">
         <i class="fas fa-users fa-3x text-muted mb-3"></i>
+        {% if search %}
+        <h5 class="text-muted">No subscribers found</h5>
+        <p class="text-muted">No subscribers match your search for "<strong>{{ search }}</strong>".</p>
+        <div class="mt-3">
+            <a href="{{ url_for('subscribers') }}" class="btn btn-primary">
+                <i class="fas fa-arrow-left"></i> View All Subscribers
+            </a>
+        </div>
+        {% else %}
         <h5 class="text-muted">No subscribers yet</h5>
         <p class="text-muted">Add your first subscriber to get started!</p>
         <div class="mt-3">
@@ -136,12 +213,30 @@
                 <i class="fas fa-file-import"></i> Import from CSV
             </a>
         </div>
+        {% endif %}
     </div>
 </div>
 {% endif %}
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // Search functionality
+        const searchInput = document.querySelector('input[name="search"]');
+        if (searchInput) {
+            // Focus on search input if there's a search term
+            if (searchInput.value.trim()) {
+                searchInput.focus();
+                searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+            }
+
+            // Submit form on Enter key
+            searchInput.addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.form.submit();
+                }
+            });
+        }
         const selectAllCheckbox = document.getElementById('select-all-checkbox');
         const subscriberCheckboxes = document.querySelectorAll('.subscriber-checkbox');
         const selectAllBtn = document.getElementById('select-all-btn');
@@ -220,6 +315,89 @@
 
         // Initial state update
         updateBulkDeleteState();
+
+        // Status toggle functionality
+        const statusToggleBtns = document.querySelectorAll('.status-toggle-btn');
+        statusToggleBtns.forEach(btn => {
+            btn.addEventListener('click', function () {
+                const subscriberId = this.getAttribute('data-subscriber-id');
+                const currentStatus = this.getAttribute('data-current-status') === 'True';
+
+                // Disable button during request
+                this.disabled = true;
+                this.style.opacity = '0.6';
+
+                // Show loading state
+                const badgeElement = this.querySelector('.badge');
+                const originalContent = badgeElement.innerHTML;
+                badgeElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+
+                // Make AJAX request
+                fetch(`/subscribers/update-status/${subscriberId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Update button attributes
+                            this.setAttribute('data-current-status', data.is_active.toString());
+                            this.title = `Click to ${data.is_active ? 'deactivate' : 'activate'}`;
+
+                            // Update badge appearance
+                            if (data.is_active) {
+                                badgeElement.className = 'badge bg-success';
+                                badgeElement.innerHTML = '<i class="fas fa-check-circle"></i> Active';
+                            } else {
+                                badgeElement.className = 'badge bg-secondary';
+                                badgeElement.innerHTML = '<i class="fas fa-times-circle"></i> Inactive';
+                            }
+
+                            // Show success message (optional - you can remove this if you don't want notifications)
+                            showToast(data.message, 'success');
+                        } else {
+                            // Restore original content on error
+                            badgeElement.innerHTML = originalContent;
+                            showToast(data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        // Restore original content on error
+                        badgeElement.innerHTML = originalContent;
+                        showToast('An error occurred while updating the status', 'error');
+                    })
+                    .finally(() => {
+                        // Re-enable button
+                        this.disabled = false;
+                        this.style.opacity = '1';
+                    });
+            });
+        });
+
+        // Simple toast notification function
+        function showToast(message, type) {
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show position-fixed`;
+            toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            toast.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            // Add to body
+            document.body.appendChild(toast);
+
+            // Auto remove after 3 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 3000);
+        }
     });
 </script>
 

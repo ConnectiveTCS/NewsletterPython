@@ -130,8 +130,22 @@ def index():
 def subscribers():
     """Manage subscribers"""
     page = request.args.get('page', 1, type=int)
-    subscribers = Subscriber.query.paginate(page=page, per_page=50, error_out=False)
-    return render_template('subscribers.html', subscribers=subscribers)
+    search = request.args.get('search', '').strip()
+    
+    # Build query with search if provided
+    query = Subscriber.query
+    if search:
+        # Search in both email and name fields (case-insensitive)
+        search_filter = f"%{search.lower()}%"
+        query = query.filter(
+            db.or_(
+                db.func.lower(Subscriber.email).like(search_filter),
+                db.func.lower(Subscriber.name).like(search_filter)
+            )
+        )
+    
+    subscribers = query.paginate(page=page, per_page=50, error_out=False)
+    return render_template('subscribers.html', subscribers=subscribers, search=search)
 
 @app.route('/subscribers/add', methods=['GET', 'POST'])
 def add_subscriber():
@@ -344,6 +358,37 @@ def bulk_delete_subscribers():
         flash(f'Error deleting subscribers: {str(e)}', 'error')
     
     return redirect(url_for('subscribers'))
+
+@app.route('/subscribers/update-status/<int:id>', methods=['POST'])
+def update_subscriber_status(id):
+    """Update subscriber status (toggle active/inactive)"""
+    subscriber = Subscriber.query.get_or_404(id)
+    
+    try:
+        # Toggle the status
+        subscriber.is_active = not subscriber.is_active
+        subscriber.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        status_text = "active" if subscriber.is_active else "inactive"
+        
+        # Return JSON response for AJAX calls
+        return jsonify({
+            'success': True,
+            'message': f'Subscriber status updated to {status_text}',
+            'is_active': subscriber.is_active,
+            'status_text': status_text
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'Error updating subscriber status: {str(e)}')
+        
+        # Return JSON error response
+        return jsonify({
+            'success': False,
+            'message': f'Error updating subscriber status: {str(e)}'
+        }), 500
 
 @app.route('/templates')
 def templates():
