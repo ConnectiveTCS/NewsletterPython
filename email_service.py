@@ -2,6 +2,7 @@
 Email Service for Newsletter Application
 """
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
@@ -23,12 +24,18 @@ class EmailService:
     def _get_fresh_connection(self):
         """Get a fresh SMTP connection for each email"""
         try:
-            connection = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            # Use SSL connection for port 465, regular SMTP with TLS for other ports
+            if self.smtp_port == 465:
+                # For port 465, use SMTP_SSL (implicit SSL from start)
+                context = ssl.create_default_context()
+                connection = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context)
+            else:
+                # For other ports (like 587), use regular SMTP with STARTTLS
+                connection = smtplib.SMTP(self.smtp_server, self.smtp_port)
+                if self.use_tls:
+                    connection.starttls()
+            
             connection.set_debuglevel(0)  # Disable debug output
-            
-            if self.use_tls:
-                connection.starttls()
-            
             connection.login(self.email_address, self.email_password)
             return connection
             
