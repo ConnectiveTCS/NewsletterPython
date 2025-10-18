@@ -10,10 +10,14 @@ class Subscriber(db.Model):
     """Subscriber model for email addresses"""
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
-    name = db.Column(db.String(255), nullable=True)
-    is_active = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    name = db.Column(db.String(255), nullable=True, index=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    unsubscribed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relationships
+    tags = db.relationship('SubscriberTag', secondary='subscriber_tag_associations', backref=db.backref('subscribers', lazy='dynamic'))
     
     def __repr__(self):
         return f'<Subscriber {self.email}>'
@@ -38,11 +42,13 @@ class Campaign(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     template_id = db.Column(db.Integer, db.ForeignKey('template.id'), nullable=False)
-    status = db.Column(db.String(50), default='draft', nullable=False)  # draft, sending, sent, failed
+    status = db.Column(db.String(50), default='draft', nullable=False, index=True)  # draft, sending, sent, failed, scheduled
     total_sent = db.Column(db.Integer, default=0)
     total_failed = db.Column(db.Integer, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     sent_at = db.Column(db.DateTime, nullable=True)
+    scheduled_at = db.Column(db.DateTime, nullable=True)
+    is_scheduled = db.Column(db.Boolean, default=False)
     
     # Relationship
     email_logs = db.relationship('EmailLog', backref='campaign', lazy=True, cascade='all, delete-orphan')
@@ -59,5 +65,52 @@ class EmailLog(db.Model):
     error_message = db.Column(db.Text, nullable=True)
     sent_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     
+    # Relationships for analytics
+    opens = db.relationship('EmailOpen', backref='email_log', lazy=True, cascade='all, delete-orphan')
+    clicks = db.relationship('EmailClick', backref='email_log', lazy=True, cascade='all, delete-orphan')
+    
     def __repr__(self):
         return f'<EmailLog {self.subscriber_email} - {self.status}>'
+
+class SubscriberTag(db.Model):
+    """Tags for subscriber segmentation"""
+    __tablename__ = 'subscriber_tags'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True, nullable=False)
+    description = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f'<SubscriberTag {self.name}>'
+
+class SubscriberTagAssociation(db.Model):
+    """Many-to-many relationship between subscribers and tags"""
+    __tablename__ = 'subscriber_tag_associations'
+    subscriber_id = db.Column(db.Integer, db.ForeignKey('subscriber.id'), primary_key=True)
+    tag_id = db.Column(db.Integer, db.ForeignKey('subscriber_tags.id'), primary_key=True)
+    assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class EmailOpen(db.Model):
+    """Track email opens"""
+    __tablename__ = 'email_opens'
+    id = db.Column(db.Integer, primary_key=True)
+    email_log_id = db.Column(db.Integer, db.ForeignKey('email_log.id'), nullable=False)
+    opened_at = db.Column(db.DateTime, default=datetime.utcnow)
+    ip_address = db.Column(db.String(45))
+    user_agent = db.Column(db.String(200))
+    
+    def __repr__(self):
+        return f'<EmailOpen {self.email_log_id}>'
+
+class EmailClick(db.Model):
+    """Track email link clicks"""
+    __tablename__ = 'email_clicks'
+    id = db.Column(db.Integer, primary_key=True)
+    email_log_id = db.Column(db.Integer, db.ForeignKey('email_log.id'), nullable=False)
+    link_url = db.Column(db.String(500))
+    clicked_at = db.Column(db.DateTime, default=datetime.utcnow)
+    ip_address = db.Column(db.String(45))
+    user_agent = db.Column(db.String(200))
+    
+    def __repr__(self):
+        return f'<EmailClick {self.link_url}>'

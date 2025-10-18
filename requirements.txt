@@ -3,3 +3,6 @@ Flask-SQLAlchemy==3.0.5
 Flask-Migrate==4.0.5
 python-dotenv==1.0.0
 Werkzeug==2.3.7
+APScheduler==3.10.4
+Flask-WTF==1.2.1
+dnspython==2.4.2

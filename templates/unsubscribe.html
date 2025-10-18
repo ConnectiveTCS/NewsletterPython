@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unsubscribe - Newsletter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .email {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-unsubscribe {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-unsubscribe:hover {
+            background-color: #c82333;
+        }
+
+        .btn-cancel {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .btn-cancel:hover {
+            background-color: #5a6268;
+        }
+
+        .icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="icon">📧</div>
+        <h1>Unsubscribe from Newsletter</h1>
+        <p>Are you sure you want to unsubscribe <span class="email">{{ subscriber.email }}</span> from our newsletter?
+        </p>
+        <p>We're sorry to see you go. You won't receive any more emails from us.</p>
+
+        <form method="POST" action="{{ url_for('unsubscribe_confirm', subscriber_id=subscriber.id) }}">
+            <div class="buttons">
+                <button type="submit" class="btn-unsubscribe">Yes, Unsubscribe</button>
+                <button type="button" class="btn-cancel" onclick="window.close()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</body>
+
+</html>

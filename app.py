@@ -8,14 +8,21 @@ from flask_migrate import Migrate
 from datetime import datetime
 # Email handling is done in email_service.py
 import threading
-import time
 # ThreadPoolExecutor removed - using sequential sending to avoid connection issues
 import logging
 import unicodedata
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def is_valid_email(email):
+    """Validate email format"""
+    if not email:
+        return False
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email))
 
 def format_name(name):
     """
@@ -103,14 +110,18 @@ app.config['EMAIL_ADDRESS'] = os.environ.get('EMAIL_ADDRESS', '')
 app.config['EMAIL_PASSWORD'] = os.environ.get('EMAIL_PASSWORD', '')
 
 # Initialize database
-from models import db, Subscriber, Template, Campaign, EmailLog
+from models import db, Subscriber, Template, Campaign, EmailLog, SubscriberTag, EmailOpen, EmailClick
 db.init_app(app)
 migrate = Migrate(app, db)
 
 from email_service import EmailService
+from template_engine import TemplateEngine
+from scheduler import CampaignScheduler
 
-# Initialize email service
+# Initialize services
 email_service = EmailService(app.config)
+template_engine = TemplateEngine()
+campaign_scheduler = CampaignScheduler(app)
 
 @app.route('/')
 def index():
@@ -260,9 +271,8 @@ def import_subscribers():
                         # Clean and format name properly
                         name = format_name(name)
                         
-                        # More lenient email validation
-                        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-                        if email and re.match(email_pattern, email):
+                        # Validate email using helper function
+                        if is_valid_email(email):
                             existing = Subscriber.query.filter_by(email=email).first()
                             if not existing:
                                 subscriber = Subscriber(email=email, name=name)
@@ -286,10 +296,6 @@ def import_subscribers():
                     message_parts.append(f'{error_count} invalid entries skipped')
                 
                 message = '. '.join(message_parts) + '.'
-                
-                # Add debugging information if there were errors
-                if error_count > 0 and invalid_emails:
-                    print(f"DEBUG: Invalid emails found: {invalid_emails}")  # For console debugging
                 
                 flash(message, 'success')
                 
@@ -503,95 +509,7 @@ def send_campaign(id):
         return redirect(url_for('campaign_detail', id=id))
     
     # Start sending in background
-    def send_emails():
-        with app.app_context():
-            try:
-                # Refresh campaign object in the new context
-                campaign_obj = Campaign.query.get(id)
-                campaign_obj.status = 'sending'
-                campaign_obj.sent_at = datetime.utcnow()
-                db.session.commit()
-                
-                subscribers = Subscriber.query.filter_by(is_active=True).all()
-                template = campaign_obj.template
-                
-                total_sent = 0
-                total_failed = 0
-                
-                # Send emails sequentially to avoid threading issues
-                for subscriber in subscribers:
-                    try:
-                        # Create a fresh email service for each email to avoid connection issues
-                        from email_service import EmailService
-                        fresh_email_service = EmailService(app.config)
-                        
-                        result = fresh_email_service.send_email(
-                            subscriber.email,
-                            template.subject,
-                            template.content,
-                            subscriber.name
-                        )
-                        
-                        if result:
-                            total_sent += 1
-                            # Log successful send
-                            log = EmailLog(
-                                campaign_id=campaign_obj.id,
-                                subscriber_email=subscriber.email,
-                                status='sent',
-                                sent_at=datetime.utcnow()
-                            )
-                            logger.info(f"Email sent successfully to {subscriber.email}")
-                        else:
-                            total_failed += 1
-                            # Log failed send
-                            log = EmailLog(
-                                campaign_id=campaign_obj.id,
-                                subscriber_email=subscriber.email,
-                                status='failed',
-                                error_message='Send failed',
-                                sent_at=datetime.utcnow()
-                            )
-                            logger.warning(f"Failed to send email to {subscriber.email}")
-                        
-                        db.session.add(log)
-                        db.session.commit()  # Commit after each email
-                        
-                        # Small delay between emails
-                        time.sleep(0.5)
-                        
-                    except Exception as e:
-                        total_failed += 1
-                        logger.error(f"Error sending to {subscriber.email}: {str(e)}")
-                        
-                        # Log error
-                        log = EmailLog(
-                            campaign_id=campaign_obj.id,
-                            subscriber_email=subscriber.email,
-                            status='failed',
-                            error_message=str(e),
-                            sent_at=datetime.utcnow()
-                        )
-                        db.session.add(log)
-                        db.session.commit()  # Commit after each email
-                
-                # Update campaign status
-                campaign_obj.status = 'sent'
-                campaign_obj.total_sent = total_sent
-                campaign_obj.total_failed = total_failed
-                db.session.commit()
-                
-                logger.info(f"Campaign {campaign_obj.name} completed: {total_sent} sent, {total_failed} failed")
-                
-            except Exception as e:
-                with app.app_context():
-                    campaign_obj = Campaign.query.get(id)
-                    campaign_obj.status = 'failed'
-                    db.session.commit()
-                logger.error(f"Campaign failed: {str(e)}")
-    
-    # Start background thread
-    thread = threading.Thread(target=send_emails)
+    thread = threading.Thread(target=send_campaign_emails, args=(id,))
     thread.daemon = True
     thread.start()
     
@@ -617,6 +535,207 @@ def campaign_status_api(id):
         'total_sent': campaign.total_sent or 0,
         'total_failed': campaign.total_failed or 0
     })
+
+# ===== NEW FEATURES =====
+
+@app.route('/unsubscribe/<int:subscriber_id>')
+def unsubscribe_page(subscriber_id):
+    """Show unsubscribe confirmation page"""
+    subscriber = Subscriber.query.get_or_404(subscriber_id)
+    return render_template('unsubscribe.html', subscriber=subscriber)
+
+@app.route('/unsubscribe/<int:subscriber_id>/confirm', methods=['POST'])
+def unsubscribe_confirm(subscriber_id):
+    """Process unsubscribe request"""
+    subscriber = Subscriber.query.get_or_404(subscriber_id)
+    try:
+        subscriber.is_active = False
+        subscriber.unsubscribed_at = datetime.utcnow()
+        db.session.commit()
+        flash('You have been unsubscribed successfully', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error processing unsubscribe: {str(e)}', 'error')
+    
+    return render_template('unsubscribed.html')
+
+@app.route('/subscribers/export')
+def export_subscribers():
+    """Export all subscribers to CSV"""
+    import csv
+    from flask import Response
+    from io import StringIO
+    
+    subscribers = Subscriber.query.all()
+    
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Email', 'Name', 'Status', 'Created At', 'Unsubscribed At'])
+    
+    for sub in subscribers:
+        writer.writerow([
+            sub.email,
+            sub.name or '',
+            'Active' if sub.is_active else 'Inactive',
+            sub.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            sub.unsubscribed_at.strftime('%Y-%m-%d %H:%M:%S') if sub.unsubscribed_at else ''
+        ])
+    
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=subscribers_export.csv'}
+    )
+
+@app.route('/api/template-variables')
+def template_variables_api():
+    """API endpoint to get available template variables"""
+    variables = template_engine.get_available_variables()
+    return jsonify(variables)
+
+@app.route('/campaigns/schedule/<int:id>', methods=['POST'])
+def schedule_campaign(id):
+    """Schedule a campaign for future sending"""
+    campaign = Campaign.query.get_or_404(id)
+    
+    scheduled_datetime = request.form.get('scheduled_datetime')
+    if not scheduled_datetime:
+        flash('Please select a date and time', 'error')
+        return redirect(url_for('campaign_detail', id=id))
+    
+    try:
+        # Parse the datetime
+        send_time = datetime.strptime(scheduled_datetime, '%Y-%m-%dT%H:%M')
+        
+        # Check if time is in the future
+        if send_time <= datetime.now():
+            flash('Scheduled time must be in the future', 'error')
+            return redirect(url_for('campaign_detail', id=id))
+        
+        # Update campaign
+        campaign.scheduled_at = send_time
+        campaign.is_scheduled = True
+        campaign.status = 'scheduled'
+        db.session.commit()
+        
+        # Schedule with scheduler
+        campaign_scheduler.schedule_campaign(id, send_time)
+        
+        flash(f'Campaign scheduled for {send_time.strftime("%Y-%m-%d %H:%M")}', 'success')
+    except ValueError:
+        flash('Invalid date/time format', 'error')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error scheduling campaign: {str(e)}', 'error')
+    
+    return redirect(url_for('campaign_detail', id=id))
+
+@app.route('/campaigns/cancel-schedule/<int:id>', methods=['POST'])
+def cancel_schedule_campaign(id):
+    """Cancel a scheduled campaign"""
+    campaign = Campaign.query.get_or_404(id)
+    
+    try:
+        # Cancel scheduler job
+        campaign_scheduler.cancel_scheduled_campaign(id)
+        
+        # Update campaign
+        campaign.scheduled_at = None
+        campaign.is_scheduled = False
+        campaign.status = 'draft'
+        db.session.commit()
+        
+        flash('Campaign schedule cancelled', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error cancelling schedule: {str(e)}', 'error')
+    
+    return redirect(url_for('campaign_detail', id=id))
+
+# Helper function to send campaign emails (extracted for scheduler use)
+def send_campaign_emails(campaign_id):
+    """Send campaign emails (can be called by scheduler or manual trigger)"""
+    with app.app_context():
+        campaign = Campaign.query.get(campaign_id)
+        if not campaign:
+            return
+        
+        campaign.status = 'sending'
+        db.session.commit()
+        
+        template = Template.query.get(campaign.template_id)
+        active_subscribers = Subscriber.query.filter_by(is_active=True).all()
+        
+        total_sent = 0
+        total_failed = 0
+        
+        for subscriber in active_subscribers:
+            try:
+                # Render template with personalization
+                personalized_content = template_engine.render_template(
+                    template.content,
+                    subscriber,
+                    campaign
+                )
+                personalized_subject = template_engine.render_subject(
+                    template.subject,
+                    subscriber,
+                    campaign
+                )
+                
+                # Send email
+                success = email_service.send_email(
+                    subscriber.email,
+                    personalized_subject,
+                    personalized_content,
+                    subscriber.name
+                )
+                
+                # Log result
+                if success:
+                    total_sent += 1
+                    log = EmailLog(
+                        campaign_id=campaign.id,
+                        subscriber_email=subscriber.email,
+                        status='sent',
+                        sent_at=datetime.utcnow()
+                    )
+                else:
+                    total_failed += 1
+                    log = EmailLog(
+                        campaign_id=campaign.id,
+                        subscriber_email=subscriber.email,
+                        status='failed',
+                        error_message='Send failed',
+                        sent_at=datetime.utcnow()
+                    )
+                
+                db.session.add(log)
+                db.session.commit()
+                
+            except Exception as e:
+                total_failed += 1
+                logger.error(f"Error sending to {subscriber.email}: {str(e)}")
+                
+                log = EmailLog(
+                    campaign_id=campaign.id,
+                    subscriber_email=subscriber.email,
+                    status='failed',
+                    error_message=str(e),
+                    sent_at=datetime.utcnow()
+                )
+                db.session.add(log)
+                db.session.commit()
+        
+        # Update campaign final status
+        campaign.status = 'sent'
+        campaign.sent_at = datetime.utcnow()
+        campaign.total_sent = total_sent
+        campaign.total_failed = total_failed
+        db.session.commit()
+        
+        logger.info(f"Campaign {campaign.id} completed: {total_sent} sent, {total_failed} failed")
 
 if __name__ == '__main__':
     with app.app_context():
