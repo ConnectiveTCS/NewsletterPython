@@ -10,40 +10,48 @@
 <!-- Statistics Cards -->
 <div class="row mb-4">
     <div class="col-md-3">
-        <div class="card card-stat">
-            <div class="card-body text-center">
-                <i class="fas fa-users fa-2x mb-2"></i>
-                <h5>{{ total_subscribers }}</h5>
-                <p class="mb-0">Total Subscribers</p>
+        <a href="{{ url_for('subscribers') }}" class="text-decoration-none">
+            <div class="card card-stat">
+                <div class="card-body text-center">
+                    <i class="fas fa-users"></i>
+                    <h5>{{ total_subscribers }}</h5>
+                    <p class="mb-0">Total Subscribers</p>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-md-3">
-        <div class="card card-stat">
-            <div class="card-body text-center">
-                <i class="fas fa-file-alt fa-2x mb-2"></i>
-                <h5>{{ total_templates }}</h5>
-                <p class="mb-0">Email Templates</p>
+        <a href="{{ url_for('templates') }}" class="text-decoration-none">
+            <div class="card card-stat">
+                <div class="card-body text-center">
+                    <i class="fas fa-file-alt"></i>
+                    <h5>{{ total_templates }}</h5>
+                    <p class="mb-0">Email Templates</p>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-md-3">
-        <div class="card card-stat">
-            <div class="card-body text-center">
-                <i class="fas fa-paper-plane fa-2x mb-2"></i>
-                <h5>{{ total_campaigns }}</h5>
-                <p class="mb-0">Total Campaigns</p>
+        <a href="{{ url_for('campaigns') }}" class="text-decoration-none">
+            <div class="card card-stat">
+                <div class="card-body text-center">
+                    <i class="fas fa-paper-plane"></i>
+                    <h5>{{ total_campaigns }}</h5>
+                    <p class="mb-0">Total Campaigns</p>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
     <div class="col-md-3">
-        <div class="card card-stat">
-            <div class="card-body text-center">
-                <i class="fas fa-chart-line fa-2x mb-2"></i>
-                <h5>{{ recent_campaigns|length }}</h5>
-                <p class="mb-0">Recent Campaigns</p>
+        <a href="{{ url_for('campaigns') }}" class="text-decoration-none">
+            <div class="card card-stat">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line"></i>
+                    <h5>{{ recent_campaigns|length }}</h5>
+                    <p class="mb-0">Recent Campaigns</p>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
 </div>
 
@@ -136,12 +144,14 @@
                     </table>
                 </div>
                 {% else %}
-                <div class="text-center py-4">
-                    <i class="fas fa-paper-plane fa-3x text-muted mb-3"></i>
-                    <h5 class="text-muted">No campaigns yet</h5>
-                    <p class="text-muted">Create your first campaign to get started!</p>
-                    <a href="{{ url_for('create_campaign') }}" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Create Campaign
+                <div class="empty-state text-center">
+                    <div class="empty-state-icon mb-4">
+                        <i class="fas fa-paper-plane fa-4x"></i>
+                    </div>
+                    <h4 class="text-muted mb-3">No campaigns yet</h4>
+                    <p class="text-muted mb-4">Create your first campaign to start reaching your subscribers!</p>
+                    <a href="{{ url_for('create_campaign') }}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-plus me-2"></i> Create Your First Campaign
                     </a>
                 </div>
                 {% endif %}

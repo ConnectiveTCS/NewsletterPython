@@ -19,22 +19,24 @@
                 <h5 class="mb-0">Add New Subscriber</h5>
             </div>
             <div class="card-body">
-                <form method="POST">
+                <form method="POST" id="addSubscriberForm">
                     <div class="mb-3">
                         <label for="email" class="form-label">Email Address *</label>
-                        <input type="email" class="form-control" id="email" name="email" required>
-                        <div class="form-text">The subscriber's email address</div>
+                        <input type="email" class="form-control" id="email" name="email" required
+                            pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$" aria-describedby="emailHelp emailError">
+                        <div id="emailHelp" class="form-text">Enter a valid email address</div>
+                        <div id="emailError" class="invalid-feedback">Please enter a valid email address</div>
                     </div>
 
                     <div class="mb-3">
                         <label for="name" class="form-label">Full Name</label>
-                        <input type="text" class="form-control" id="name" name="name">
-                        <div class="form-text">Optional: Subscriber's full name for personalization</div>
+                        <input type="text" class="form-control" id="name" name="name" aria-describedby="nameHelp">
+                        <div id="nameHelp" class="form-text">Optional: Subscriber's full name for personalization</div>
                     </div>
 
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-user-plus"></i> Add Subscriber
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                            <span class="btn-text"><i class="fas fa-user-plus"></i> Add Subscriber</span>
                         </button>
                         <a href="{{ url_for('subscribers') }}" class="btn btn-secondary">Cancel</a>
                     </div>
@@ -43,4 +45,46 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Real-time email validation
+    const emailInput = document.getElementById('email');
+    const form = document.getElementById('addSubscriberForm');
+    const submitBtn = document.getElementById('submitBtn');
+
+    emailInput.addEventListener('blur', function () {
+        if (this.value && this.validity.valid) {
+            this.classList.remove('is-invalid');
+            this.classList.add('is-valid');
+        } else if (this.value) {
+            this.classList.remove('is-valid');
+            this.classList.add('is-invalid');
+        }
+    });
+
+    emailInput.addEventListener('input', function () {
+        if (this.classList.contains('is-invalid') || this.classList.contains('is-valid')) {
+            if (this.validity.valid) {
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else {
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            }
+        }
+    });
+
+    // Add loading state on form submit
+    form.addEventListener('submit', function (e) {
+        if (form.checkValidity()) {
+            submitBtn.classList.add('btn-loading');
+            submitBtn.disabled = true;
+        }
+    });
+
+    // Focus email input on page load
+    emailInput.focus();
+</script>
 {% endblock %}

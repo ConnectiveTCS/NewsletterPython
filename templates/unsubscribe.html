@@ -81,24 +81,143 @@
             font-size: 60px;
             margin-bottom: 20px;
         }
+
+        .feedback-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #eee;
+            text-align: left;
+        }
+
+        .feedback-section h3 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .feedback-option {
+            display: block;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background-color: white;
+        }
+
+        .feedback-option:hover {
+            background-color: #f8f9fa;
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+
+        .feedback-option input[type="checkbox"] {
+            margin-right: 12px;
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+        }
+
+        .feedback-option label {
+            cursor: pointer;
+            font-size: 15px;
+            user-select: none;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .feedback-note {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
         <div class="icon">📧</div>
-        <h1>Unsubscribe from Newsletter</h1>
+        <h1>We're Sorry to See You Go</h1>
         <p>Are you sure you want to unsubscribe <span class="email">{{ subscriber.email }}</span> from our newsletter?
         </p>
-        <p>We're sorry to see you go. You won't receive any more emails from us.</p>
 
-        <form method="POST" action="{{ url_for('unsubscribe_confirm', subscriber_id=subscriber.id) }}">
-            <div class="buttons">
+        <div class="feedback-section">
+            <h3>Help us improve (Optional)</h3>
+            <p class="feedback-note">Why are you unsubscribing? Your feedback helps us improve.</p>
+
+            <label class="feedback-option">
+                <input type="checkbox" name="reason" value="too_frequent">
+                <span>Emails are too frequent</span>
+            </label>
+
+            <label class="feedback-option">
+                <input type="checkbox" name="reason" value="not_relevant">
+                <span>Content is not relevant to me</span>
+            </label>
+
+            <label class="feedback-option">
+                <input type="checkbox" name="reason" value="never_signed">
+                <span>I never signed up for this</span>
+            </label>
+
+            <label class="feedback-option">
+                <input type="checkbox" name="reason" value="other">
+                <span>Other reason</span>
+            </label>
+
+            <textarea id="otherReason" placeholder="Tell us more... (optional)" style="display: none;"></textarea>
+        </div>
+
+        <form method="POST" action="{{ url_for('unsubscribe_confirm', subscriber_id=subscriber.id) }}" id="unsubForm">
+            <input type="hidden" name="feedback" id="feedbackData">
+            <div class="buttons" style="margin-top: 30px;">
                 <button type="submit" class="btn-unsubscribe">Yes, Unsubscribe</button>
-                <button type="button" class="btn-cancel" onclick="window.close()">Cancel</button>
+                <button type="button" class="btn-cancel" onclick="window.history.back()">Stay Subscribed</button>
             </div>
         </form>
     </div>
+
+    <script>
+        // Show textarea when "Other" is selected
+        document.querySelectorAll('input[name="reason"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function () {
+                const otherTextarea = document.getElementById('otherReason');
+                if (this.value === 'other' && this.checked) {
+                    otherTextarea.style.display = 'block';
+                    otherTextarea.focus();
+                } else if (this.value === 'other' && !this.checked) {
+                    otherTextarea.style.display = 'none';
+                }
+            });
+        });
+
+        // Collect feedback before submit
+        document.getElementById('unsubForm').addEventListener('submit', function (e) {
+            const reasons = Array.from(document.querySelectorAll('input[name="reason"]:checked')).map(cb => cb.value);
+            const otherText = document.getElementById('otherReason').value;
+            const feedback = {
+                reasons: reasons,
+                otherText: otherText
+            };
+            document.getElementById('feedbackData').value = JSON.stringify(feedback);
+        });
+    </script>
 </body>
 
 </html>
