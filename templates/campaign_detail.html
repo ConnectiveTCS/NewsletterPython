@@ -4,7 +4,12 @@
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">{{ campaign.name }}</h1>
+    <h1 class="h2">
+        {{ campaign.name }}
+        {% if campaign.is_archived %}
+        <span class="badge bg-secondary">Archived</span>
+        {% endif %}
+    </h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <a href="{{ url_for('campaigns') }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left"></i> Back to Campaigns
@@ -104,6 +109,36 @@
                     <i class="fas fa-list"></i> View Email Logs
                 </a>
                 {% endif %}
+
+                <!-- Archive/Delete Actions -->
+                <hr class="my-3">
+                <div class="d-flex gap-2 justify-content-center">
+                    {% if campaign.is_archived %}
+                    <form method="POST" action="{{ url_for('unarchive_campaign', id=campaign.id) }}"
+                        onsubmit="return confirm('Are you sure you want to unarchive this campaign?');">
+                        <button type="submit" class="btn btn-outline-success" data-bs-toggle="tooltip"
+                            data-bs-placement="top" title="Unarchive Campaign">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('archive_campaign', id=campaign.id) }}"
+                        onsubmit="return confirm('Are you sure you want to archive this campaign?');">
+                        <button type="submit" class="btn btn-outline-warning" data-bs-toggle="tooltip"
+                            data-bs-placement="top" title="Archive Campaign">
+                            <i class="fas fa-archive"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    <form method="POST" action="{{ url_for('delete_campaign', id=campaign.id) }}"
+                        onsubmit="return confirm('Are you sure you want to permanently delete this campaign? This action cannot be undone.');">
+                        <button type="submit" class="btn btn-outline-danger" data-bs-toggle="tooltip"
+                            data-bs-placement="top" title="Delete Campaign">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
 
@@ -134,6 +169,12 @@
 
 {% block scripts %}
 <script>
+    // Initialize Bootstrap tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
     function confirmSend() {
         return confirm('Are you sure you want to send this campaign to all subscribers? This action cannot be undone.');
     }

@@ -464,8 +464,14 @@ def delete_template(id):
 @app.route('/campaigns')
 def campaigns():
     """View campaigns"""
-    campaigns = Campaign.query.order_by(Campaign.created_at.desc()).all()
-    return render_template('campaigns.html', campaigns=campaigns)
+    show_archived = request.args.get('show_archived', 'false').lower() == 'true'
+    
+    if show_archived:
+        campaigns = Campaign.query.filter_by(is_archived=True).order_by(Campaign.created_at.desc()).all()
+    else:
+        campaigns = Campaign.query.filter_by(is_archived=False).order_by(Campaign.created_at.desc()).all()
+    
+    return render_template('campaigns.html', campaigns=campaigns, show_archived=show_archived)
 
 @app.route('/campaigns/create', methods=['GET', 'POST'])
 def create_campaign():
@@ -525,6 +531,59 @@ def campaign_logs(id):
         page=page, per_page=50, error_out=False
     )
     return render_template('campaign_logs.html', campaign=campaign, logs=logs)
+
+@app.route('/campaigns/<int:id>/archive', methods=['POST'])
+def archive_campaign(id):
+    """Archive a campaign"""
+    campaign = Campaign.query.get_or_404(id)
+    
+    try:
+        campaign.is_archived = True
+        campaign.archived_at = datetime.utcnow()
+        db.session.commit()
+        flash(f'Campaign "{campaign.name}" has been archived', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error archiving campaign: {str(e)}', 'error')
+    
+    return redirect(url_for('campaigns'))
+
+@app.route('/campaigns/<int:id>/unarchive', methods=['POST'])
+def unarchive_campaign(id):
+    """Unarchive a campaign"""
+    campaign = Campaign.query.get_or_404(id)
+    
+    try:
+        campaign.is_archived = False
+        campaign.archived_at = None
+        db.session.commit()
+        flash(f'Campaign "{campaign.name}" has been unarchived', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error unarchiving campaign: {str(e)}', 'error')
+    
+    return redirect(url_for('campaigns', show_archived='true'))
+
+@app.route('/campaigns/<int:id>/delete', methods=['POST'])
+def delete_campaign(id):
+    """Delete a campaign"""
+    campaign = Campaign.query.get_or_404(id)
+    campaign_name = campaign.name
+    
+    try:
+        # Delete associated email logs (cascade should handle this, but explicit is good)
+        EmailLog.query.filter_by(campaign_id=id).delete()
+        
+        # Delete the campaign
+        db.session.delete(campaign)
+        db.session.commit()
+        
+        flash(f'Campaign "{campaign_name}" has been deleted', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting campaign: {str(e)}', 'error')
+    
+    return redirect(url_for('campaigns'))
 
 @app.route('/api/campaign/<int:id>/status')
 def campaign_status_api(id):

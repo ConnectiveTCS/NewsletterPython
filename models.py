@@ -49,6 +49,8 @@ class Campaign(db.Model):
     sent_at = db.Column(db.DateTime, nullable=True)
     scheduled_at = db.Column(db.DateTime, nullable=True)
     is_scheduled = db.Column(db.Boolean, default=False)
+    is_archived = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
     
     # Relationship
     email_logs = db.relationship('EmailLog', backref='campaign', lazy=True, cascade='all, delete-orphan')
